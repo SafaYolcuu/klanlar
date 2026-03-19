@@ -360,18 +360,17 @@ function komutTiklamaEkle(){
 		var row = $(this);
 		var timerSpan = row.find('.widget-command-timer');
 		if(!timerSpan.length) return;
-		var timeTd = row.find('td').eq(1);
-		timeTd.css({cursor:'pointer', textDecoration:'underline'});
-		timeTd.attr('title','Tarihi planlayiciya aktar');
-		timeTd.on('click', function(e){
+		row.css('cursor','pointer');
+		row.attr('title','Tarihi planlayiciya aktar');
+		row.on('click', function(e){
 			e.preventDefault();
 			e.stopPropagation();
 			var endtime = Number(timerSpan.attr('data-endtime'));
 			var d = new Date((endtime + server_utc_diff) * 1000);
 			$('#data_wejscia').val(d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear());
 			$('#godzina_wejscia').val(d.getUTCHours()+':'+d.getUTCMinutes()+':'+d.getUTCSeconds());
-			timeTd.css('background','#cfc');
-			setTimeout(function(){ timeTd.css('background',''); }, 500);
+			row.css('background','#cfc');
+			setTimeout(function(){ row.css('background',''); }, 500);
 		});
 	});
 }
