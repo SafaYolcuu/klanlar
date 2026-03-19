@@ -356,21 +356,24 @@ function rysujPlaner(){
 	$(mobile?"#mobileContent":"#contentContainer").prepend(elem);
 }
 function komutTiklamaEkle(){
-	$('#commands_outgoings .command-row').css('cursor','pointer').attr('title','Tarihi planlayiciya aktar');
-	document.addEventListener('click', function(e){
-		var row = $(e.target).closest('#commands_outgoings .command-row');
-		if(!row.length) return;
-		var timerSpan = row.find('.widget-command-timer');
-		if(!timerSpan.length) return;
-		e.preventDefault();
-		e.stopImmediatePropagation();
-		var endtime = Number(timerSpan.attr('data-endtime'));
-		var d = new Date((endtime + server_utc_diff) * 1000);
-		document.getElementById('data_wejscia').value = d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear();
-		document.getElementById('godzina_wejscia').value = d.getUTCHours()+':'+d.getUTCMinutes()+':'+d.getUTCSeconds();
-		row.css('background','#cfc');
-		setTimeout(function(){ row.css('background',''); }, 500);
-	}, true);
+	jQuery('#commands_outgoings table tbody tr.command-row').css('cursor','pointer');
+	jQuery(document).on('click', '#commands_outgoings .command-row', function(){
+		try {
+			var timerSpan = jQuery(this).find('.widget-command-timer');
+			if(!timerSpan.length) return;
+			var endtime = Number(timerSpan.attr('data-endtime'));
+			var d = new Date((endtime + server_utc_diff) * 1000);
+			var tarih = d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear();
+			var saat = d.getUTCHours()+':'+d.getUTCMinutes()+':'+d.getUTCSeconds();
+			jQuery('#data_wejscia').val(tarih);
+			jQuery('#godzina_wejscia').val(saat);
+			jQuery('#commands_outgoings .command-row').css('background','');
+			jQuery(this).css('background','#cfc');
+			UI.SuccessMessage('Aktarildi: ' + tarih + ' ' + saat);
+		} catch(err) {
+			UI.ErrorMessage('Hata: ' + err.message);
+		}
+	});
 }
 function poprawDate(elem,sep){
 	x = elem.value.match(/\d+/g);
