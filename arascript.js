@@ -352,6 +352,27 @@ function poprawDate(elem,sep){
 	x = elem.value.match(/\d+/g);
 	elem.value = x[0] + sep + x[1] + sep + x[2];
 }
+function znajdzKolumnyJednostek(tabela){
+	var wynik = [];
+	var naglowek = tabela && tabela.rows && tabela.rows.length ? tabela.rows[0] : null;
+	if(!naglowek) return wynik;
+
+	for(var u=0; u<obrazki.length; u++){
+		var nazwa = obrazki[u];
+		var idx = -1;
+		for(var c=0; c<naglowek.cells.length; c++){
+			var komorka = naglowek.cells[c];
+			var html = (komorka.innerHTML || "").toLowerCase();
+			// Szukamy po nazwie ikonki jednostki, np. unit_spear.png
+			if(html.indexOf("unit_"+nazwa+".png") !== -1){
+				idx = c;
+				break;
+			}
+		}
+		wynik.push(idx);
+	}
+	return wynik;
+}
 function pobierzDane(){
 	pobieram = true;
 	var r;
@@ -365,18 +386,21 @@ function pobierzDane(){
 			
 			var grupy = $(requestedBody).find('.vis_item').get()[0].getElementsByTagName(mobile?'option':'a');
 			if(!tabela){ $("#ladowanie").html("Secilen\u00A0grupta\u00A0koy\u00A0yok\u00A0:/ Baska\u00A0bir\u00A0grup\u00A0secin"); pobieram = false; return;}
+			var kolumnyJednostek = znajdzKolumnyJednostek(tabela);
 			for(i=1;i<tabela.rows.length;i++){
 				pokazWies[i-1]=true;
 				wojska[i-1] = [];
 				pustaWioska = 0;
-				for(j=2;j<tabela.rows[i].cells.length-1;j++){
-					wojska[i-1].push(tabela.rows[i].cells[j].textContent);
-					if(!Number(wojska[i-1][j-2])) pustaWioska++;
+				for(j=0;j<kolumnyJednostek.length;j++){
+					var colIdx = kolumnyJednostek[j];
+					var deger = 0;
+					if(colIdx > -1 && tabela.rows[i].cells[colIdx]){
+						deger = Number(String(tabela.rows[i].cells[colIdx].textContent).replace(/\D/g, "")) || 0;
+					}
+					wojska[i-1].push(deger);
+					if(!deger) pustaWioska++;
 				}
-				// Disable sadece gerçekten tüm birim sütunları 0 ise yapılsın.
-				// (Aksi halde bazı kolon sayıları ile dane.predkosci.length eşleşmediğinde
-				// bazı köyler yanlışlıkla disable olabiliyor.)
-				if(pustaWioska>=wojska[i-1].length) pokazWies[i-1]=false;
+				if(wojska[i-1].length && pustaWioska>=wojska[i-1].length) pokazWies[i-1]=false;
 				id.push(tabela.rows[i].cells[0].getElementsByTagName('span')[0].getAttribute("data-id"));
 				mojeWioski.push(tabela.rows[i].cells[0].getElementsByTagName('span')[2].textContent.match(/\d+/g));
 				nazwyWiosek.push(tabela.rows[i].cells[0].getElementsByTagName('span')[2].textContent);
