@@ -9,8 +9,8 @@ if(!$("#planer_klinow").length){
 		linkDoWojska:"/game.php?&village="+game_data.village.id+"&type=own_home&mode=units&group=0&page=-1&screen=overview_villages",
 		linkDoPrzegladuWioski:"/game.php?",
 		linkDorozkazu:"/game.php?",
-		predkosci:[18,22,18,9,10,11,30,30,10,35],
-		nazwyWojsk:["Mızrakçı","Kılıççı","Baltacı","Casus","Hafif Atlı","Ağır Atlı","Koçbaşı","Mancınık","Şövalye","Soylu"]
+		predkosci:[18,22,18,18,9,10,10,11,30,30,10,35],
+		nazwyWojsk:["Mızrakçı","Kılıççı","Baltacı","Okçu","Casus","Hafif Atlı","Atlı Okçu","Ağır Atlı","Koçbaşı","Mancınık","Şövalye","Soylu"]
 	};
 
 	var pobieram = true;
@@ -26,9 +26,17 @@ if(!$("#planer_klinow").length){
 	var nazwyWiosek = [];
 	var pokazWies=[];
 	var tabelkaBB=[];
-	var obrazki = "spear,sword,axe,spy,light,heavy,ram,catapult,knight,snob".split(",");
+	var obrazki = "spear,sword,axe,archer,spy,light,marcher,heavy,ram,catapult,knight,snob".split(",");
 	var aktywneJednostki = ("111"+(dane.rycerz?"10":"0")).split("");
 	
+	if(!dane.lucznicy){
+		dane.predkosci.splice(obrazki.indexOf("marcher"),1);
+		dane.nazwyWojsk.splice(obrazki.indexOf("marcher"),1);
+		obrazki.splice(obrazki.indexOf("marcher"),1);
+		dane.predkosci.splice(obrazki.indexOf("archer"),1);
+		dane.nazwyWojsk.splice(obrazki.indexOf("archer"),1);
+		obrazki.splice(obrazki.indexOf("archer"),1);
+	}
 	if(!dane.rycerz){
 		dane.predkosci.splice(obrazki.indexOf("knight"),1);
 		dane.nazwyWojsk.splice(obrazki.indexOf("knight"),1);
