@@ -66,10 +66,7 @@ if(!$("#planer_klinow").length){
 		dane.predkosci[i] /= predkosc_swiata;
 	}
 	rysujPlaner();
-	if(game_data.screen=="info_village"){
-		UI.SuccessMessage('[1] info_village tespit edildi');
-		komutTiklamaEkle();
-	}
+	if(game_data.screen=="info_village") komutTiklamaEkle();
 	pobierzDane();
 }
 else
@@ -359,25 +356,26 @@ function rysujPlaner(){
 	$(mobile?"#mobileContent":"#contentContainer").prepend(elem);
 }
 function komutTiklamaEkle(){
-	var satirSayisi = jQuery('#commands_outgoings .command-row').length;
-	UI.SuccessMessage('[2] komutTiklamaEkle calisti, satir: ' + satirSayisi);
-	jQuery('#commands_outgoings table tbody tr.command-row').css('cursor','pointer');
-	jQuery(document).on('click', '#commands_outgoings .command-row', function(){
-		try {
-			var timerSpan = jQuery(this).find('.widget-command-timer');
-			if(!timerSpan.length) return;
-			var endtime = Number(timerSpan.attr('data-endtime'));
-			var d = new Date((endtime + server_utc_diff) * 1000);
-			var tarih = d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear();
-			var saat = d.getUTCHours()+':'+d.getUTCMinutes()+':'+d.getUTCSeconds();
-			jQuery('#data_wejscia').val(tarih);
-			jQuery('#godzina_wejscia').val(saat);
-			jQuery('#commands_outgoings .command-row').css('background','');
-			jQuery(this).css('background','#cfc');
-			UI.SuccessMessage('Aktarildi: ' + tarih + ' ' + saat);
-		} catch(err) {
-			UI.ErrorMessage('Hata: ' + err.message);
-		}
+	jQuery('#commands_outgoings table tbody tr.command-row').each(function(){
+		var row = jQuery(this);
+		var timerSpan = row.find('.widget-command-timer');
+		if(!timerSpan.length) return;
+		row.css('cursor','pointer');
+		row.on('click', function(){
+			try {
+				var endtime = Number(timerSpan.attr('data-endtime'));
+				var d = new Date((endtime + server_utc_diff) * 1000);
+				var tarih = d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear();
+				var saat = d.getUTCHours()+':'+d.getUTCMinutes()+':'+d.getUTCSeconds();
+				jQuery('#data_wejscia').val(tarih);
+				jQuery('#godzina_wejscia').val(saat);
+				jQuery('#commands_outgoings .command-row').css('background','');
+				row.css('background','#cfc');
+				UI.SuccessMessage('Aktarildi: ' + tarih + ' ' + saat);
+			} catch(err) {
+				UI.ErrorMessage('Hata: ' + err.message);
+			}
+		});
 	});
 }
 function poprawDate(elem,sep){
