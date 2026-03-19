@@ -121,7 +121,7 @@ function wypiszMozliwosci(){
 			czasWyjscia[ilosc_wiosek]=new Date(tmp);
 			ddd = tmp.getDate() + "." + (tmp.getMonth()+1) + "\u00A0" + tmp.getHours() + ":" + tmp.getMinutes() + ":" + tmp.getSeconds();
 			html[ilosc_wiosek]=htmlTmp[i]+"<td>"+ddd+"<td>"+0+"<td><a href='"+dane.linkDorozkazu+id[i]+"&screen=place&x="+cel[0]+"&y="+cel[1]+mozliwewojska+"'>Gonder</a>";
-			tabelkaBB[ilosc_wiosek]="[*]"+dane.nazwyWojsk[najwJednostka]+"[|] "+mojeWioski[i][mojeWioski[i].length-3]+"|"+mojeWioski[i][mojeWioski[i].length-2]+" [|] "+cel[0]+"|"+cel[1]+" [|] "+ddd+" [|] [url=https://"+document.URL.split("/")[2]+dane.linkDorozkazu+id[i]+"&screen=place&x="+cel[0]+"&y="+cel[1]+mozliwewojska+"]Gonder\n";
+		tabelkaBB[ilosc_wiosek]="[*]"+dane.nazwyWojsk[najwJednostka]+"[|] "+mojeWioski[i][mojeWioski[i].length-3]+"|"+mojeWioski[i][mojeWioski[i].length-2]+" [|] "+cel[0]+"|"+cel[1]+" [|] "+ddd+" [|] [url=https://"+document.URL.split("/")[2]+dane.linkDorozkazu+id[i]+"&screen=place&x="+cel[0]+"&y="+cel[1]+mozliwewojska+"]Gonder\n";
 			ilosc_wiosek++;
 		}
 		else{
@@ -182,7 +182,7 @@ function zmienGrupe(){
 	id = [];
 	mojeWioski = [];
 	nazwyWiosek = [];
-	dane.linkDoWojska = document.getElementById('listGrup').value;
+	dane.linkDoWojska = ustawPage(document.getElementById('listGrup').value, -1);
 	pobierzDane();
 }
 function zaznaczWszystko(source) {
@@ -278,7 +278,7 @@ function wybieranieWiosek(){
 		komorki = "<a href="+dane.linkDoPrzegladuWioski+id[i]+">"+nazwyWiosek[i].replace(/\s+/g, "\u00A0")+"</a>";
 		for(j=0;j<obrazki.length;j++){
 			komorki += "<td>"+wojska[i][j];
-			if(!ukryty && wojska[i][j]<minimalna_ilosc_wojsk[i]) ukryty = true;
+			if(!ukryty && Number(wojska[i][j]) < Number(minimalna_ilosc_wojsk[j])) ukryty = true;
 		}
 		if(!ukryty) wiersz = "<tr class='"+(i%2?'row_a':'row_b')+"'><td>"; 
 		else wiersz="<tr class='"+(i%2?'row_a':'row_b')+"' style=\"display: none;\"><td>";
@@ -373,7 +373,10 @@ function pobierzDane(){
 					wojska[i-1].push(tabela.rows[i].cells[j].textContent);
 					if(!Number(wojska[i-1][j-2])) pustaWioska++;
 				}
-				if(pustaWioska>dane.predkosci.length) pokazWies[i-1]=false;
+				// Disable sadece gerçekten tüm birim sütunları 0 ise yapılsın.
+				// (Aksi halde bazı kolon sayıları ile dane.predkosci.length eşleşmediğinde
+				// bazı köyler yanlışlıkla disable olabiliyor.)
+				if(pustaWioska>=wojska[i-1].length) pokazWies[i-1]=false;
 				id.push(tabela.rows[i].cells[0].getElementsByTagName('span')[0].getAttribute("data-id"));
 				mojeWioski.push(tabela.rows[i].cells[0].getElementsByTagName('span')[2].textContent.match(/\d+/g));
 				nazwyWiosek.push(tabela.rows[i].cells[0].getElementsByTagName('span')[2].textContent);
@@ -385,7 +388,7 @@ function pobierzDane(){
 					nazwa = grupy[i].textContent;
 					if(mobile && grupy[i].textContent=="wszystkie") continue;
 					$("#listGrup").append($('<option>', {
-						value: grupy[i].getAttribute(mobile?"value":"href")+"&page=-1",
+						value: ustawPage(grupy[i].getAttribute(mobile?"value":"href"), -1),
 						text: mobile?nazwa:nazwa.slice(1,nazwa.length-1)
 					}));
 				}
@@ -410,6 +413,15 @@ function konfiguracjaSwiata(){
 		'success':function(data){dt=data;}
 	});
 	return dt;
+}
+
+function ustawPage(url, page){
+	if(!url) return url;
+	// Aynı URL içinde birden fazla "page=" olmasın (örn: page=1&page=-1).
+	if(/([?&])page=-?\d+/.test(url)){
+		return url.replace(/([?&])page=-?\d+/, '$1page='+page);
+	}
+	return url + (url.indexOf('?')>-1 ? '&' : '?') + 'page='+page;
 }
 function getCookie(cname) {
     var name = cname + "=";
