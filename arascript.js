@@ -356,25 +356,45 @@ function rysujPlaner(){
 	$(mobile?"#mobileContent":"#contentContainer").prepend(elem);
 }
 function komutTiklamaEkle(){
-	jQuery('#commands_outgoings table tbody tr.command-row').each(function(){
+	var rows = jQuery('#commands_outgoings .command-row');
+	if(!rows.length) return;
+	var utcDiff;
+	if(typeof server_utc_diff !== 'undefined') utcDiff = server_utc_diff;
+	else if(typeof Timing !== 'undefined' && Timing.initial_server_time) utcDiff = Timing.initial_server_time - Math.round(Date.now()/1000);
+	else utcDiff = 0;
+	var html = '<div class="vis vis_item" id="komut_aktarma" style="margin-bottom:5px;padding:5px;">';
+	html += '<table class="vis" width="100%"><tr><th colspan="3" style="text-align:left;">Komutlar &mdash; Zamani Aktar</th></tr>';
+	rows.each(function(idx){
 		var row = jQuery(this);
-		var timerSpan = row.find('.widget-command-timer');
+		var timerSpan = row.find('[data-endtime]');
 		if(!timerSpan.length) return;
-		var btn = jQuery('<a href="#" class="btn" style="margin-left:5px;padding:2px 6px;font-size:11px;">Aktar</a>');
-		row.find('td').last().append(btn);
-		btn.on('click', function(e){
-			e.preventDefault();
-			e.stopPropagation();
-			var endtime = Number(timerSpan.attr('data-endtime'));
-			var d = new Date((endtime + server_utc_diff) * 1000);
-			var tarih = d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear();
-			var saat = d.getUTCHours()+':'+d.getUTCMinutes()+':'+d.getUTCSeconds();
-			jQuery('#data_wejscia').val(tarih);
-			jQuery('#godzina_wejscia').val(saat);
-			btn.val('OK').css('background','#5c5');
-			setTimeout(function(){ btn.val('Aktar').css('background',''); }, 1000);
-			UI.SuccessMessage('Aktarildi: ' + tarih + ' ' + saat);
+		var endtime = Number(timerSpan.attr('data-endtime'));
+		var d = new Date((endtime + utcDiff) * 1000);
+		var tarih = d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear();
+		var saat = ('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2)+':'+('0'+d.getUTCSeconds()).slice(-2);
+		var labelParts = [];
+		row.find('td').each(function(ci){
+			if(ci > 1) return false;
+			var t = jQuery(this).text().replace(/\s+/g,' ').trim();
+			if(t) labelParts.push(t);
 		});
+		var label = labelParts.join(' ').substring(0,50) || ('Komut '+(idx+1));
+		html += '<tr>';
+		html += '<td style="padding:3px 6px;">'+label+'</td>';
+		html += '<td style="padding:3px 6px;white-space:nowrap;"><b>'+tarih+' '+saat+'</b></td>';
+		html += '<td style="padding:3px 6px;"><input type="button" class="btn komut-aktar-btn" value="Aktar" data-tarih="'+tarih+'" data-saat="'+saat+'" style="padding:1px 8px;font-size:11px;"></td>';
+		html += '</tr>';
+	});
+	html += '</table></div>';
+	jQuery('#planer_klinow').after(html);
+	jQuery('#komut_aktarma').on('click', '.komut-aktar-btn', function(e){
+		e.preventDefault();
+		var btn = jQuery(this);
+		jQuery('#data_wejscia').val(btn.data('tarih'));
+		jQuery('#godzina_wejscia').val(btn.data('saat'));
+		btn.val('OK').css('background','#5c5');
+		setTimeout(function(){ btn.val('Aktar').css('background',''); }, 1200);
+		UI.SuccessMessage('Aktarildi: '+btn.data('tarih')+' '+btn.data('saat'));
 	});
 }
 function poprawDate(elem,sep){
