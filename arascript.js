@@ -350,23 +350,6 @@ function poprawDate(elem,sep){
 	x = elem.value.match(/\d+/g);
 	elem.value = x[0] + sep + x[1] + sep + x[2];
 }
-function znajdzKolumnyJednostek(tabela){
-	var wynik = [];
-	if(!tabela || !tabela.rows || !tabela.rows.length) return wynik;
-	var naglowek = tabela.rows[0];
-	for(var u=0; u<obrazki.length; u++){
-		var idx = -1;
-		for(var c=0; c<naglowek.cells.length; c++){
-			var html = (naglowek.cells[c].innerHTML || "").toLowerCase();
-			if(html.indexOf("unit_"+obrazki[u]+".png") !== -1){
-				idx = c;
-				break;
-			}
-		}
-		wynik.push(idx);
-	}
-	return wynik;
-}
 function pobierzDane(){
 	pobieram = true;
 	var r;
@@ -380,19 +363,13 @@ function pobierzDane(){
 			
 			var grupy = $(requestedBody).find('.vis_item').get()[0].getElementsByTagName(mobile?'option':'a');
 			if(!tabela){ $("#ladowanie").html("Secilen\u00A0grupta\u00A0koy\u00A0yok\u00A0:/ Baska\u00A0bir\u00A0grup\u00A0secin"); pobieram = false; return;}
-			var kolumnyJednostek = znajdzKolumnyJednostek(tabela);
 			for(i=1;i<tabela.rows.length;i++){
 				pokazWies[i-1]=true;
 				wojska[i-1] = [];
 				var toplamAsker = 0;
-				for(j=0;j<kolumnyJednostek.length;j++){
-					var colIdx = kolumnyJednostek[j];
-					var deger = 0;
-					if(colIdx > -1 && tabela.rows[i].cells[colIdx]){
-						deger = Number(String(tabela.rows[i].cells[colIdx].textContent).replace(/\D/g, "")) || 0;
-					}
-					wojska[i-1].push(deger);
-					toplamAsker += deger;
+				for(j=2;j<tabela.rows[i].cells.length-1;j++){
+					wojska[i-1].push(tabela.rows[i].cells[j].textContent);
+					toplamAsker += Number(wojska[i-1][j-2]);
 				}
 				if(toplamAsker === 0) pokazWies[i-1]=false;
 				id.push(tabela.rows[i].cells[0].getElementsByTagName('span')[0].getAttribute("data-id"));
