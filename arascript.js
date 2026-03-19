@@ -66,7 +66,10 @@ if(!$("#planer_klinow").length){
 		dane.predkosci[i] /= predkosc_swiata;
 	}
 	rysujPlaner();
-	if(game_data.screen=="info_village") komutTiklamaEkle();
+	if(game_data.screen=="info_village"){
+		UI.SuccessMessage('[1] info_village tespit edildi');
+		komutTiklamaEkle();
+	}
 	pobierzDane();
 }
 else
@@ -356,6 +359,8 @@ function rysujPlaner(){
 	$(mobile?"#mobileContent":"#contentContainer").prepend(elem);
 }
 function komutTiklamaEkle(){
+	var satirSayisi = jQuery('#commands_outgoings .command-row').length;
+	UI.SuccessMessage('[2] komutTiklamaEkle calisti, satir: ' + satirSayisi);
 	jQuery('#commands_outgoings table tbody tr.command-row').css('cursor','pointer');
 	jQuery(document).on('click', '#commands_outgoings .command-row', function(){
 		try {
