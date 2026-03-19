@@ -98,7 +98,6 @@ function wypiszMozliwosci(){
 			if(aktywneJednostki[j]=="0" || wojska[i][j]<1){ 
 				
 				htmlTmp[i] += "<td class='hidden'>"+wojska[i][j]; 
-				//mozliwewojska += "&att_"+obrazki[j]+"="+0;
 				continue; 
 			}
 			a = Math.abs(Number(cel[0]) - mojeWioski[i][mojeWioski[i].length-3]);
@@ -111,7 +110,6 @@ function wypiszMozliwosci(){
 				htmlTmp[i] += "<td style='background-color: #C3FFA5;'>"+wojska[i][j];
 			}
 			else {
-				//mozliwewojska += "&att_"+obrazki[j]+"="+0;
 				htmlTmp[i] += "<td>"+wojska[i][j];
 			}
 		}
@@ -121,7 +119,7 @@ function wypiszMozliwosci(){
 			czasWyjscia[ilosc_wiosek]=new Date(tmp);
 			ddd = tmp.getDate() + "." + (tmp.getMonth()+1) + "\u00A0" + tmp.getHours() + ":" + tmp.getMinutes() + ":" + tmp.getSeconds();
 			html[ilosc_wiosek]=htmlTmp[i]+"<td>"+ddd+"<td>"+0+"<td><a href='"+dane.linkDorozkazu+id[i]+"&screen=place&x="+cel[0]+"&y="+cel[1]+mozliwewojska+"'>Gonder</a>";
-		tabelkaBB[ilosc_wiosek]="[*]"+dane.nazwyWojsk[najwJednostka]+"[|] "+mojeWioski[i][mojeWioski[i].length-3]+"|"+mojeWioski[i][mojeWioski[i].length-2]+" [|] "+cel[0]+"|"+cel[1]+" [|] "+ddd+" [|] [url=https://"+document.URL.split("/")[2]+dane.linkDorozkazu+id[i]+"&screen=place&x="+cel[0]+"&y="+cel[1]+mozliwewojska+"]Gonder\n";
+			tabelkaBB[ilosc_wiosek]="[*]"+dane.nazwyWojsk[najwJednostka]+"[|] "+mojeWioski[i][mojeWioski[i].length-3]+"|"+mojeWioski[i][mojeWioski[i].length-2]+" [|] "+cel[0]+"|"+cel[1]+" [|] "+ddd+" [|] [url=https://"+document.URL.split("/")[2]+dane.linkDorozkazu+id[i]+"&screen=place&x="+cel[0]+"&y="+cel[1]+mozliwewojska+"]Gonder\n";
 			ilosc_wiosek++;
 		}
 		else{
@@ -182,7 +180,7 @@ function zmienGrupe(){
 	id = [];
 	mojeWioski = [];
 	nazwyWiosek = [];
-	dane.linkDoWojska = ustawPage(document.getElementById('listGrup').value, -1);
+	dane.linkDoWojska = document.getElementById('listGrup').value;
 	pobierzDane();
 }
 function zaznaczWszystko(source) {
@@ -354,17 +352,13 @@ function poprawDate(elem,sep){
 }
 function znajdzKolumnyJednostek(tabela){
 	var wynik = [];
-	var naglowek = tabela && tabela.rows && tabela.rows.length ? tabela.rows[0] : null;
-	if(!naglowek) return wynik;
-
+	if(!tabela || !tabela.rows || !tabela.rows.length) return wynik;
+	var naglowek = tabela.rows[0];
 	for(var u=0; u<obrazki.length; u++){
-		var nazwa = obrazki[u];
 		var idx = -1;
 		for(var c=0; c<naglowek.cells.length; c++){
-			var komorka = naglowek.cells[c];
-			var html = (komorka.innerHTML || "").toLowerCase();
-			// Szukamy po nazwie ikonki jednostki, np. unit_spear.png
-			if(html.indexOf("unit_"+nazwa+".png") !== -1){
+			var html = (naglowek.cells[c].innerHTML || "").toLowerCase();
+			if(html.indexOf("unit_"+obrazki[u]+".png") !== -1){
 				idx = c;
 				break;
 			}
@@ -390,7 +384,7 @@ function pobierzDane(){
 			for(i=1;i<tabela.rows.length;i++){
 				pokazWies[i-1]=true;
 				wojska[i-1] = [];
-				pustaWioska = 0;
+				var toplamAsker = 0;
 				for(j=0;j<kolumnyJednostek.length;j++){
 					var colIdx = kolumnyJednostek[j];
 					var deger = 0;
@@ -398,9 +392,9 @@ function pobierzDane(){
 						deger = Number(String(tabela.rows[i].cells[colIdx].textContent).replace(/\D/g, "")) || 0;
 					}
 					wojska[i-1].push(deger);
-					if(!deger) pustaWioska++;
+					toplamAsker += deger;
 				}
-				if(wojska[i-1].length && pustaWioska>=wojska[i-1].length) pokazWies[i-1]=false;
+				if(toplamAsker === 0) pokazWies[i-1]=false;
 				id.push(tabela.rows[i].cells[0].getElementsByTagName('span')[0].getAttribute("data-id"));
 				mojeWioski.push(tabela.rows[i].cells[0].getElementsByTagName('span')[2].textContent.match(/\d+/g));
 				nazwyWiosek.push(tabela.rows[i].cells[0].getElementsByTagName('span')[2].textContent);
@@ -412,7 +406,7 @@ function pobierzDane(){
 					nazwa = grupy[i].textContent;
 					if(mobile && grupy[i].textContent=="wszystkie") continue;
 					$("#listGrup").append($('<option>', {
-						value: ustawPage(grupy[i].getAttribute(mobile?"value":"href"), -1),
+						value: grupy[i].getAttribute(mobile?"value":"href")+"&page=-1",
 						text: mobile?nazwa:nazwa.slice(1,nazwa.length-1)
 					}));
 				}
@@ -437,15 +431,6 @@ function konfiguracjaSwiata(){
 		'success':function(data){dt=data;}
 	});
 	return dt;
-}
-
-function ustawPage(url, page){
-	if(!url) return url;
-	// Aynı URL içinde birden fazla "page=" olmasın (örn: page=1&page=-1).
-	if(/([?&])page=-?\d+/.test(url)){
-		return url.replace(/([?&])page=-?\d+/, '$1page='+page);
-	}
-	return url + (url.indexOf('?')>-1 ? '&' : '?') + 'page='+page;
 }
 function getCookie(cname) {
     var name = cname + "=";
