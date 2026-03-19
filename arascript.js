@@ -360,21 +360,20 @@ function komutTiklamaEkle(){
 		var row = jQuery(this);
 		var timerSpan = row.find('.widget-command-timer');
 		if(!timerSpan.length) return;
-		row.css('cursor','pointer');
-		row.on('click', function(){
-			try {
-				var endtime = Number(timerSpan.attr('data-endtime'));
-				var d = new Date((endtime + server_utc_diff) * 1000);
-				var tarih = d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear();
-				var saat = d.getUTCHours()+':'+d.getUTCMinutes()+':'+d.getUTCSeconds();
-				jQuery('#data_wejscia').val(tarih);
-				jQuery('#godzina_wejscia').val(saat);
-				jQuery('#commands_outgoings .command-row').css('background','');
-				row.css('background','#cfc');
-				UI.SuccessMessage('Aktarildi: ' + tarih + ' ' + saat);
-			} catch(err) {
-				UI.ErrorMessage('Hata: ' + err.message);
-			}
+		var btn = jQuery('<a href="#" class="btn" style="margin-left:5px;padding:2px 6px;font-size:11px;">Aktar</a>');
+		row.find('td').last().append(btn);
+		btn.on('click', function(e){
+			e.preventDefault();
+			e.stopPropagation();
+			var endtime = Number(timerSpan.attr('data-endtime'));
+			var d = new Date((endtime + server_utc_diff) * 1000);
+			var tarih = d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear();
+			var saat = d.getUTCHours()+':'+d.getUTCMinutes()+':'+d.getUTCSeconds();
+			jQuery('#data_wejscia').val(tarih);
+			jQuery('#godzina_wejscia').val(saat);
+			btn.val('OK').css('background','#5c5');
+			setTimeout(function(){ btn.val('Aktar').css('background',''); }, 1000);
+			UI.SuccessMessage('Aktarildi: ' + tarih + ' ' + saat);
 		});
 	});
 }
