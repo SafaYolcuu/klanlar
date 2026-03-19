@@ -66,6 +66,7 @@ if(!$("#planer_klinow").length){
 		dane.predkosci[i] /= predkosc_swiata;
 	}
 	rysujPlaner();
+	if(game_data.screen=="info_village") komutTiklamaEkle();
 	pobierzDane();
 }
 else
@@ -353,6 +354,26 @@ function rysujPlaner(){
 	elem += "<th>Cikis\u00A0zamani<th><span class=\'icon header time\'><th><b>Emir</b></thead>";
 	elem += "<tbody></table></table></div>";
 	$(mobile?"#mobileContent":"#contentContainer").prepend(elem);
+}
+function komutTiklamaEkle(){
+	$('#commands_outgoings .command-row').each(function(){
+		var row = $(this);
+		var timerSpan = row.find('.widget-command-timer');
+		if(!timerSpan.length) return;
+		var timeTd = row.find('td').eq(1);
+		timeTd.css({cursor:'pointer', textDecoration:'underline'});
+		timeTd.attr('title','Tarihi planlayiciya aktar');
+		timeTd.on('click', function(e){
+			e.preventDefault();
+			e.stopPropagation();
+			var endtime = Number(timerSpan.attr('data-endtime'));
+			var d = new Date((endtime + server_utc_diff) * 1000);
+			$('#data_wejscia').val(d.getUTCDate()+'.'+(d.getUTCMonth()+1)+'.'+d.getUTCFullYear());
+			$('#godzina_wejscia').val(d.getUTCHours()+':'+d.getUTCMinutes()+':'+d.getUTCSeconds());
+			timeTd.css('background','#cfc');
+			setTimeout(function(){ timeTd.css('background',''); }, 500);
+		});
+	});
 }
 function poprawDate(elem,sep){
 	x = elem.value.match(/\d+/g);
