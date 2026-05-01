@@ -1,12 +1,19 @@
 if(!$("#planer_klinow").length){
 	var konfiguracja = konfiguracjaSwiata();
 
+	/** Aktif köy id: URL'deki village= öncelikli (info_village hedef ekranında game_data farklı olabilir). */
+	var twCtxVillageId = (function(){
+		var m = /[?&]village=(\d+)/.exec(window.location.href);
+		if (m && m[1]) return m[1];
+		return game_data.village.id;
+	})();
+
 	var dane = {
 		predkosc_gry:Number($(konfiguracja).find("config speed").text()),
 		predkosc_jednostek:Number($(konfiguracja).find("config unit_speed").text()),
 		lucznicy:Number($(konfiguracja).find("game archer").text()),
 		rycerz:Number($(konfiguracja).find("game knight").text()),
-		linkDoWojska:"/game.php?&village="+game_data.village.id+"&type=own_home&mode=units&group=0&page=-1&screen=overview_villages",
+		linkDoWojska:"/game.php?&village="+twCtxVillageId+"&type=own_home&mode=units&group=0&page=-1&screen=overview_villages",
 		linkDoPrzegladuWioski:"/game.php?",
 		linkDorozkazu:"/game.php?",
 		predkosci:[18,22,18,18,9,10,10,11,30,30,10,35],
@@ -47,16 +54,14 @@ if(!$("#planer_klinow").length){
 		aktywneJednostki = parseInt(ciacho,36).toString(2).split("");
 		while(aktywneJednostki.length<dane.predkosci.length) aktywneJednostki.splice(0,0,"0");
 	}
-	var t = $('#serverTime').html().match(/\d+/g);
-	var d = $('#serverDate').html().match(/\d+/g);
-	var obecnyCzas = new Date(d[2],d[1]-1,d[0],t[0],t[1],t[2]);
+	var obecnyCzas = twPlParseServerNow();
 	if(game_data.player.sitter != 0){
-		dane.linkDoWojska="/game.php?t=" + game_data.player.id + "&village="+game_data.village.id+"&type=own_home&mode=units&group=0&page=-1&screen=overview_villages";
-		dane.linkDoPrzegladuWioski += "t=" + game_data.player.id + "&village="+game_data.village.id+"&screen=info_village&id=";
+		dane.linkDoWojska="/game.php?t=" + game_data.player.id + "&village="+twCtxVillageId+"&type=own_home&mode=units&group=0&page=-1&screen=overview_villages";
+		dane.linkDoPrzegladuWioski += "t=" + game_data.player.id + "&village="+twCtxVillageId+"&screen=info_village&id=";
 		dane.linkDorozkazu += "t=" + game_data.player.id + "&village=";
 	}
 	else{	
-		dane.linkDoPrzegladuWioski += "village="+game_data.village.id+"&screen=info_village&id=";
+		dane.linkDoPrzegladuWioski += "village="+twCtxVillageId+"&screen=info_village&id=";
 		dane.linkDorozkazu += "village=";
 	}
 	var wszystkieWojska = dane.linkDoWojska;
@@ -73,6 +78,28 @@ else
 	$("#planer_klinow").remove();
 void 0;
 
+/** Sunucu saati: #serverTime / #serverDate yoksa Timing veya yerel saat. */
+function twPlParseServerNow(){
+	var rawT = ($('#serverTime').html() || $('#serverTime').text() || '').trim();
+	var rawD = ($('#serverDate').html() || $('#serverDate').text() || '').trim();
+	var t = rawT.match(/\d+/g);
+	var d = rawD.match(/\d+/g);
+	if (t && t.length >= 3 && d && d.length >= 3) {
+		return new Date(parseInt(d[2],10), parseInt(d[1],10)-1, parseInt(d[0],10), parseInt(t[0],10), parseInt(t[1],10), parseInt(t[2],10));
+	}
+	if (typeof Timing !== 'undefined' && typeof Timing.getCurrentServerTime === 'function') {
+		try {
+			return new Date(Timing.getCurrentServerTime() * 1000);
+		} catch (e2) {}
+	}
+	return new Date();
+}
+
+function twPlToast(msg, isErr){
+	if (typeof UI !== 'undefined' && UI.InfoMessage) UI.InfoMessage(msg, 2500, isErr ? 'error' : 'success');
+	else window.alert(msg);
+}
+
 function wypiszMozliwosci(){
 	if(pobieram){$("#ladowanie").html("Bekle, veriyi indiriyorum..."); setTimeout(wypiszMozliwosci, 500); return;}
 	if($("#wyborWojsk").is(":visible")){zmienStrzalke(); $("#wyborWojsk").hide();$("#lista_wojska").show(); zapiszWybrane();}
@@ -83,6 +110,18 @@ function wypiszMozliwosci(){
 	var cel = document.getElementById('wspolrzedneCelu').value.match(/\d+/g);
 	var godzinaWejscia = document.getElementById('godzina_wejscia').value.match(/\d+/g);
 	var dataWejscia = document.getElementById('data_wejscia').value.match(/\d+/g);
+	if (!cel || cel.length < 2) {
+		twPlToast('Hedef koordinat gecersiz (ornek: 500|500).', true);
+		return;
+	}
+	if (!dataWejscia || dataWejscia.length < 3 || !godzinaWejscia || godzinaWejscia.length < 3) {
+		twPlToast('Tarih ve saat alanlarini kontrol edin (GG.AA.YYYY ve SS:DD:SS).', true);
+		return;
+	}
+	if (!mojeWioski || !mojeWioski.length) {
+		twPlToast('Koy asker listesi yok. Sayfayi yenileyip Planlayiciyi tekrar yukleyin veya grup secimini kontrol edin.', true);
+		return;
+	}
 	
 	$('#lista_wojska th').each(function (i) {
 		if(i>dane.predkosci.length) return;
@@ -90,16 +129,14 @@ function wypiszMozliwosci(){
 		else if(i) aktywneJednostki[i-1]="1";
 	});
 	setCookie("atkjed",(parseInt(aktywneJednostki.join(""),2).toString(36)),360);
-	var t = $('#serverTime').html().match(/\d+/g);
-	var d = $('#serverDate').html().match(/\d+/g);
-	var obecnyCzas = new Date(d[2],d[1]-1,d[0],t[0],t[1],t[2]);
+	var obecnyCzas = twPlParseServerNow();
 	var czasWejscia = new Date(dataWejscia[2], dataWejscia[1] - 1, dataWejscia[0], godzinaWejscia[0], godzinaWejscia[1], godzinaWejscia[2]);
 	var roznicaSekund=(czasWejscia-obecnyCzas)/1000;
 	
 	var ilosc_wiosek = 0;
 	for(i=0;i<mojeWioski.length;i++){
 		if(!pokazWies[i]) continue;
-		htmlTmp[i] = "<tr><td><a href="+dane.linkDoPrzegladuWioski+id[i]+">"+nazwyWiosek[i].replace(/\s+/g, "\u00A0");+"</a>";
+		htmlTmp[i] = "<tr><td><a href="+dane.linkDoPrzegladuWioski+id[i]+">"+nazwyWiosek[i].replace(/\s+/g, "\u00A0")+"</a>";
 		najwolniejsza = 0;
 		mozliwewojska = "&from=simulator";
 		
@@ -135,7 +172,7 @@ function wypiszMozliwosci(){
 			htmlTmp[i]  = "";
 		}
 	}
-	if(ilosc_wiosek==0) UI.InfoMessage('Belirtilen tarihe hicbir emir sigdirmiyorum :( ', 1500, 'error');
+	if(ilosc_wiosek==0) twPlToast('Belirtilen tarihe hicbir emir sigdirmiyorum :( ', true);
 	$("#ilosc_mozliwosci").html("<b>"+ilosc_wiosek+"/"+mojeWioski.length+"</b>");
 
 	for(i=0;i<html.length-1;i++){
@@ -164,9 +201,7 @@ function wypiszMozliwosci(){
 }
 
 function odliczaj(){
-	var t = $('#serverTime').html().match(/\d+/g);
-	var d = $('#serverDate').html().match(/\d+/g);
-	var obecnyCzas = new Date(d[2],d[1]-1,d[0],t[0],t[1],t[2]);
+	var obecnyCzas = twPlParseServerNow();
 	
 	$('#lista_wojska tbody>tr').each(function (i) {
 		roznicaSekund = (czasWyjscia[i] - obecnyCzas)/1000;
@@ -279,7 +314,7 @@ function wybieranieWiosek(){
 	for(i=0;i<obrazki.length;i++){
 		okienko += "<th style=\"cursor:pointer;\" onclick=\"sortowanie_przegladu("+i+");\" ><img src='"+img_wojsk+"unit_"+obrazki[i]+".png'>";
 	}
-	okienko +="<th style=\"cursor:pointer;\" onclick=\"sortowanie_przegladu("+(obrazki.length)+");\" >Uzaklik<th><input type='checkbox' onClick='zaznaczWszystko(this)'\" >";
+	okienko +="<th style=\"cursor:pointer;\" onclick=\"sortowanie_przegladu("+(obrazki.length)+");\" >Uzaklik<th><input type='checkbox' onClick='zaznaczWszystko(this)'>";
 	for(i=0;i<wojska.length;i++){
 		ukryty = false;
 		komorki = "<a href="+dane.linkDoPrzegladuWioski+id[i]+">"+nazwyWiosek[i].replace(/\s+/g, "\u00A0")+"</a>";
@@ -297,8 +332,11 @@ function wybieranieWiosek(){
 	pokazOdleglosc();
 }
 function pokazOdleglosc(){
-	document.getElementById('wspolrzedneCelu').value = document.getElementById('wspolrzedneCelu').value.match(/\d+\|\d+/);
-	var cel = document.getElementById('wspolrzedneCelu').value.match(/\d+/g);
+	var inp = document.getElementById('wspolrzedneCelu');
+	var mm = inp.value.match(/\d+\|\d+/);
+	if (mm) inp.value = mm[0];
+	var cel = inp.value.match(/\d+/g);
+	if (!cel || cel.length < 2 || !mojeWioski || !mojeWioski.length) return;
 	$("#wyborWojsk tr:has(td) td:nth-child("+(dane.predkosci.length+2)+")").each(function(i){
 		a = Math.abs(Number(cel[0]) - mojeWioski[i][mojeWioski[i].length-3]);
 		b = Math.abs(Number(cel[1]) - mojeWioski[i][mojeWioski[i].length-2]);
@@ -346,7 +384,7 @@ function rysujPlaner(){
 				return;
 			}
 		});
-	var elem = "<div class='vis vis_item' style='overflow: auto; height: 300px;' id='planer_klinow'><table width='100%'><tr><td width='300'><table style=\"border-spacing: 3px; border-collapse: separate;\"><tr><th>Hedef<th>Tarih<th>Saat<th>Grup<th><th><tr><td><input size=8 type='text' onchange='pokazOdleglosc();' value='" + cel +"' id='wspolrzedneCelu' /><td><input size=8 type='text' value='" + obecnyCzas.getDate()+"."+(obecnyCzas.getMonth()+1)+"."+obecnyCzas.getFullYear() + "' onchange=\"poprawDate(this,'.');\" id='data_wejscia'/><td><input size=8 type='text' value='" + obecnyCzas.getHours()+":"+obecnyCzas.getMinutes()+":"+obecnyCzas.getSeconds() + "' onchange=\"poprawDate(this,':');\" id='godzina_wejscia'/><td><select id='listGrup' onchange=\"zmienGrupe();\"><option value='"+wszystkieWojska+"'>Tumu</select><td onclick=\"zmienStrzalke(); if($('#wyborWojsk').is(':visible')){ $('#wyborWojsk').hide();$('#lista_wojska').show(); zapiszWybrane(); return;}	else{ $('#lista_wojska').hide(); $('#wyborWojsk').show();} \" style=\"cursor:pointer;\"><span id='strzaleczka' class='icon header arr_down' ></span><td><input type='button' class='btn' value='Hesapla' onclick=\"wypiszMozliwosci();\" id='przycisk'></table><td id='ladowanie'><img src='"+image_base+"throbber.gif' />";
+	var elem = "<div class='vis vis_item' style='overflow: auto; height: 300px;' id='planer_klinow'><table width='100%'><tr><td width='300'><table style=\"border-spacing: 3px; border-collapse: separate;\"><tr><th>Hedef<th>Tarih<th>Saat<th>Grup<th><th><tr><td><input size=8 type='text' onchange='pokazOdleglosc();' value='" + cel +"' id='wspolrzedneCelu' /><td><input size=8 type='text' value='" + obecnyCzas.getDate()+"."+(obecnyCzas.getMonth()+1)+"."+obecnyCzas.getFullYear() + "' onchange=\"poprawDate(this,'.');\" id='data_wejscia'/><td><input size=8 type='text' value='" + obecnyCzas.getHours()+":"+obecnyCzas.getMinutes()+":"+obecnyCzas.getSeconds() + "' onchange=\"poprawDate(this,':');\" id='godzina_wejscia'/><td><select id='listGrup' onchange=\"zmienGrupe();\"><option value='"+wszystkieWojska+"'>Tumu</select><td onclick=\"zmienStrzalke(); if($('#wyborWojsk').is(':visible')){ $('#wyborWojsk').hide();$('#lista_wojska').show(); zapiszWybrane(); return;}	else{ $('#lista_wojska').hide(); $('#wyborWojsk').show();} \" style=\"cursor:pointer;\"><span id='strzaleczka' class='icon header arr_down' ></span><td><input type='button' class='btn' value='Hesapla' title='Asker listesi yuklenene kadar bekleyin' disabled onclick=\"wypiszMozliwosci();\" id='przycisk'></table><td id='ladowanie'><img src='"+image_base+"throbber.gif' />";
 	elem += "<tr><td colspan=2 width='100%'><table style=\"display: none; border-spacing: 3px; border-collapse: separate;\" id='wyborWojsk' width='100%'></table><table style=\"border-spacing: 3px; border-collapse: separate;\" id='lista_wojska' width='100%'><thead><tr><th id='ilosc_mozliwosci'><span class='icon header village' ></span>";
 
 	for(i=0;i<obrazki.length;i++)
@@ -403,17 +441,45 @@ function poprawDate(elem,sep){
 }
 function pobierzDane(){
 	pobieram = true;
+	$("#przycisk").prop("disabled", true).attr("title", "Veri indiriliyor...");
 	var r;
 	r = new XMLHttpRequest();
 	r.open('GET', dane.linkDoWojska, true);
+	r.timeout = 60000;
+	r.onerror = function(){
+		$("#ladowanie").html("Ag hatasi");
+		twPlToast('Asker listesi istegi basarisiz (ag/CORS). Sayfayi yenileyin.', true);
+		pobieram = false;
+		$("#przycisk").prop("disabled", false).attr("title", "");
+	};
+	r.ontimeout = function(){
+		$("#ladowanie").html("Zaman asimi");
+		twPlToast('Asker listesi 60 sn icinde gelmedi.', true);
+		pobieram = false;
+		$("#przycisk").prop("disabled", false).attr("title", "");
+	};
 	function processResponse(){
-		if (r.readyState == 4 && r.status == 200) {
+		if (r.readyState !== 4) return;
+		if (r.status !== 200) {
+			$("#ladowanie").html("Asker listesi alinamadi (HTTP " + r.status + ").");
+			twPlToast('Asker listesi yuklenemedi (HTTP ' + r.status + '). Koy secimini veya oturumu kontrol edin.', true);
+			pobieram = false;
+			$("#przycisk").prop("disabled", false).attr("title", "");
+			return;
+		}
+		try {
 			requestedBody = document.createElement("body");
 			requestedBody.innerHTML = r.responseText;
 			var tabela = $(requestedBody).find('#units_table').get()[0];
-			
-			var grupy = $(requestedBody).find('.vis_item').get()[0].getElementsByTagName(mobile?'option':'a');
-			if(!tabela){ $("#ladowanie").html("Secilen\u00A0grupta\u00A0koy\u00A0yok\u00A0:/ Baska\u00A0bir\u00A0grup\u00A0secin"); pobieram = false; return;}
+			var grupEl = $(requestedBody).find('.vis_item').get()[0];
+			if(!tabela || !grupEl){
+				$("#ladowanie").html("Secilen\u00A0grupta\u00A0koy\u00A0yok\u00A0:/ Baska\u00A0bir\u00A0grup\u00A0secin");
+				twPlToast('Bu grupta koy yok veya sayfa yapisi degisti (#units_table).', true);
+				pobieram = false;
+				$("#przycisk").prop("disabled", false).attr("title", "");
+				return;
+			}
+			var grupy = grupEl.getElementsByTagName(mobile?'option':'a');
 			for(i=1;i<tabela.rows.length;i++){
 				pokazWies[i-1]=true;
 				wojska[i-1] = [];
@@ -423,9 +489,15 @@ function pobierzDane(){
 					toplamAsker += Number(wojska[i-1][j-2]);
 				}
 				if(toplamAsker === 0) pokazWies[i-1]=false;
-				id.push(tabela.rows[i].cells[0].getElementsByTagName('span')[0].getAttribute("data-id"));
-				mojeWioski.push(tabela.rows[i].cells[0].getElementsByTagName('span')[2].textContent.match(/\d+/g));
-				nazwyWiosek.push(tabela.rows[i].cells[0].getElementsByTagName('span')[2].textContent);
+				var spans = tabela.rows[i].cells[0].getElementsByTagName('span');
+				if (!spans || spans.length < 3) continue;
+				var did = spans[0].getAttribute("data-id");
+				var coordTxt = spans[2].textContent;
+				var coordArr = coordTxt.match(/\d+/g);
+				if (!did || !coordArr || coordArr.length < 2) continue;
+				id.push(did);
+				mojeWioski.push(coordArr);
+				nazwyWiosek.push(coordTxt);
 			}
 			wybieranieWiosek();
 			if(pobraneGrupy && $('#lista_wojska').is(':visible')) wypiszMozliwosci();
@@ -444,7 +516,13 @@ function pobierzDane(){
 			
 			$("#ladowanie").html("");
 			pobieram = false;
-		};
+			$("#przycisk").prop("disabled", false).attr("title", "");
+		} catch (ex) {
+			$("#ladowanie").html("Veri hatasi");
+			twPlToast('Asker tablosu okunamadi: ' + ex, true);
+			pobieram = false;
+			$("#przycisk").prop("disabled", false).attr("title", "");
+		}
 	}
 	r.onreadystatechange = processResponse;
 	r.send(null);
