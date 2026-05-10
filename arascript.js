@@ -1,5 +1,7 @@
-if(!$("#planer_klinow").length){
-	var konfiguracja = konfiguracjaSwiata();
+$("#planer_klinow").remove();
+$("#komut_aktarma").remove();
+
+var konfiguracja = konfiguracjaSwiata();
 
 	/** Aktif köy id: URL'deki village= öncelikli (info_village hedef ekranında game_data farklı olabilir). */
 	var twCtxVillageId = (function(){
@@ -70,12 +72,7 @@ if(!$("#planer_klinow").length){
 		minimalna_ilosc_wojsk[i] = 0;
 		dane.predkosci[i] /= predkosc_swiata;
 	}
-	rysujPlaner();
-	if(game_data.screen=="info_village") komutTiklamaEkle();
-	pobierzDane();
-}
-else
-	$("#planer_klinow").remove();
+	twPlBootstrapPlaner();
 void 0;
 
 /** Sunucu saati: #serverTime / #serverDate yoksa Timing veya yerel saat. */
@@ -100,6 +97,348 @@ function twPlToast(msg, isErr){
 	else window.alert(msg);
 }
 
+/** game_data gec guncellenince URL ile bilgi koy sayfasi tespiti */
+function twPlIsInfoVillagePage(){
+	try {
+		if (/[?&]screen=info_village\b/.test(window.location.href || '')) return true;
+		if (typeof game_data !== 'undefined' && game_data && game_data.screen === 'info_village') return true;
+	} catch (e) {}
+	return false;
+}
+
+/** Metinden veya ham cel dizgisinden gecerli x|y; olmazsa su anki koy (fallback). */
+function twPlSanitizeCoordPair(str, fallbackX, fallbackY){
+	var s = String(str != null ? str : '')
+		.replace(/\r\n|\r|\n/g, ' ')
+		.replace(/\u00a0/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+	var m = s.match(/(\d{1,4})\s*\|\s*(\d{1,4})/)
+		|| s.match(/(\d{1,4})\s*[·‧•∶:×]\s*(\d{1,4})/);
+	if (m) return parseInt(m[1], 10) + '|' + parseInt(m[2], 10);
+	var fx = fallbackX != null && fallbackX !== '' ? Number(fallbackX) : NaN;
+	var fy = fallbackY != null && fallbackY !== '' ? Number(fallbackY) : NaN;
+	if (Number.isFinite(fx) && Number.isFinite(fy)) return fx + '|' + fy;
+	return '0|0';
+}
+
+function twPlParseCoordText(text){
+	var cell = String(text != null ? text : '').trim()
+		.replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+	var mm = cell.match(/(\d{1,4})\s*\|\s*(\d{1,4})/)
+		|| cell.match(/\b(\d{1,4})\s*[·‧•∶:×]\s*(\d{1,4})\b/);
+	return mm ? mm[1] + '|' + mm[2] : null;
+}
+
+/** Etiketsiz metin/ tablo taramasinda ilk gelen kucuk x|y ciftleri genelde gurultu (or. 19|59); koy kutusu nth/embed haric. */
+function twPlRejectNoiseCoordPair(pairStr){
+	var mm = twPlParseCoordText(pairStr);
+	if (!mm) return true;
+	var p = mm.split('|');
+	var x = parseInt(p[0], 10), y = parseInt(p[1], 10);
+	if (!Number.isFinite(x) || !Number.isFinite(y)) return true;
+	return x < 100 && y < 100;
+}
+
+/** Koordinat etiketi yakininda ilk x|y (sayfa genelindeki ilk pipe ciftinden guvenli) */
+function twPlCoordsFromAnchoredBlockText(cv){
+	var t = (cv.innerText || cv.textContent || '').replace(/\s+/g, ' ');
+	var reAnchor = /koordinat|coord|coordinates|koordinaten|position|pozycja|lokalizacja/i;
+	var am = reAnchor.exec(t);
+	if (!am) return null;
+	var slice = t.slice(Math.max(0, am.index - 35), Math.min(t.length, am.index + 160));
+	var cm = slice.match(/(\d{1,4})\s*\|\s*(\d{1,4})/);
+	if (!cm) return null;
+	var ap = cm[1] + '|' + cm[2];
+	return twPlRejectNoiseCoordPair(ap) ? null : ap;
+}
+
+/** Ayni id baska yerde varsa #planer_klinow icindeki hedef kutusu */
+function twPlTargetCoordInput(){
+	return document.querySelector('#planer_klinow #wspolrzedneCelu');
+}
+
+function twPlFillTargetCoordInput(cel){
+	var fbX = game_data.village.x, fbY = game_data.village.y;
+	if ((fbX == null || fbX === '') && game_data.village.coord) {
+		var pc = twPlParseCoordText(game_data.village.coord);
+		if (pc) {
+			var pq = pc.split('|');
+			fbX = pq[0];
+			fbY = pq[1];
+		}
+	}
+	if (cel != null && String(cel).trim() !== '' && twPlRejectNoiseCoordPair(String(cel))) cel = null;
+	var src = cel != null && String(cel).trim() !== '' ? cel : fbX + '|' + fbY;
+	var v = twPlSanitizeCoordPair(src, fbX, fbY);
+	var el = twPlTargetCoordInput();
+	if (!el) return;
+	el.value = v;
+	el.defaultValue = v;
+	el.setAttribute('value', v);
+	try {
+		el.dispatchEvent(new Event('input', { bubbles: true }));
+	} catch (e3) {}
+	var box = document.getElementById('planer_klinow');
+	if (box) box.setAttribute('data-twpl-fill', v);
+}
+
+/** info_village icerigi / embed script gec gelince kutuyu yakala */
+function twPlScheduleInfoVillageCoordRefresh(){
+	if (!twPlIsInfoVillagePage() || mobile) return;
+	var fbX = game_data.village.x, fbY = game_data.village.y;
+	var n = 0;
+	function tick(){
+		var inp = twPlTargetCoordInput();
+		var cv = document.getElementById('content_value');
+		var rawParsed = twPlCoordsFromInfoVillage() || (cv && twPlCoordsFromMapLinks(cv));
+		var parsed = (rawParsed && !twPlRejectNoiseCoordPair(rawParsed)) ? rawParsed : null;
+		if (!inp) return;
+		if (parsed) {
+			var v = twPlSanitizeCoordPair(parsed, fbX, fbY);
+			if (v && v !== '0|0') {
+				twPlFillTargetCoordInput(parsed);
+				try {
+					if (typeof mojeWioski !== 'undefined' && mojeWioski && mojeWioski.length) pokazOdleglosc();
+				} catch (e1) {}
+				return;
+			}
+		}
+		if (++n < 55) setTimeout(tick, 200);
+		else {
+			if (!inp.value || !String(inp.value).trim()) twPlFillTargetCoordInput(null);
+		}
+	}
+	setTimeout(tick, 50);
+}
+
+/** AJAX ile content_value guncellenince koordinati tekrar yaz */
+function twPlWatchContentValueCoords(){
+	if (!twPlIsInfoVillagePage() || mobile) return;
+	var cv = document.getElementById('content_value');
+	if (!cv || typeof MutationObserver === 'undefined') return;
+	var deb = null;
+	var obs = new MutationObserver(function(){
+		if (deb) clearTimeout(deb);
+		deb = setTimeout(function(){
+			deb = null;
+			var parsed = twPlCoordsFromInfoVillage();
+			if (!parsed || twPlRejectNoiseCoordPair(parsed)) return;
+			twPlFillTargetCoordInput(parsed);
+			try {
+				if (typeof mojeWioski !== 'undefined' && mojeWioski && mojeWioski.length) pokazOdleglosc();
+			} catch (e1) {}
+		}, 150);
+	});
+	obs.observe(cv, { childList: true, subtree: true });
+	setTimeout(function(){ try { obs.disconnect(); } catch (e2) {} }, 90000);
+}
+
+/** #content_value icindeki tablolar: Koordinat/coord etiketi -> ikinci hucre x|y (sadece .vis degil, ic ice tum tablolar) */
+function twPlCoordsFromVisTablesByLabel(){
+	var cv = document.getElementById('content_value');
+	if (!cv) return null;
+	var labelRe = /koordinat|coord|coordinates|koordinaten|position|pozycja|lokalizacja/i;
+	var tables = cv.querySelectorAll('table');
+	for (var ti = 0; ti < tables.length; ti++) {
+		var vis = tables[ti];
+		if (!vis.rows) continue;
+		for (var r = 0; r < vis.rows.length; r++) {
+			var row = vis.rows[r];
+			if (row.cells.length < 2) continue;
+			var label = (row.cells[0].textContent || '').replace(/\s+/g, ' ').trim();
+			if (labelRe.test(label)) {
+				var got = twPlParseCoordText(row.cells[1].textContent);
+				if (got && !twPlRejectNoiseCoordPair(got)) return got;
+			}
+		}
+	}
+	/* vis sinifi olmayan koy kutusu: tek satirda x|y + kisa etiket (satir indeksi skin ile 3 veya 4 olabilir) */
+	for (ti = 0; ti < tables.length; ti++) {
+		var tbl = tables[ti];
+		if (!tbl.rows || tbl.rows.length < 2 || tbl.rows.length > 14) continue;
+		var hits = [];
+		for (var r2 = 0; r2 < tbl.rows.length; r2++) {
+			var row2 = tbl.rows[r2];
+			if (row2.cells.length < 2) continue;
+			var c0 = (row2.cells[0].textContent || '').replace(/\s+/g, ' ').trim();
+			if (c0.length === 0 || c0.length > 55) continue;
+			var g = twPlParseCoordText(row2.cells[1].textContent);
+			if (!g) continue;
+			if (twPlParseCoordText(c0)) continue;
+			hits.push(g);
+		}
+		if (hits.length === 1) {
+			if (twPlRejectNoiseCoordPair(hits[0])) return null;
+			return hits[0];
+		}
+	}
+	return null;
+}
+
+/** showEmbeddedMap bazen content_value disinda (layout script) */
+function twPlCoordsFromEmbeddedMapGlobal(){
+	try {
+		var hay = document.documentElement ? document.documentElement.innerHTML : '';
+		if (hay.length > 900000) hay = hay.slice(0, 900000);
+		var re = /(?:TWMap\.)?showEmbeddedMap\s*\(\s*[\s\S]*?,\s*\d+\s*,\s*(\d+)\s*,\s*(\d+)/;
+		var m = re.exec(hay);
+		if (!m) return null;
+		var gp = m[1] + '|' + m[2];
+		return twPlRejectNoiseCoordPair(gp) ? null : gp;
+	} catch (e) {
+		return null;
+	}
+}
+
+/** Koordinat href: ...&x=1&y=2 veya screen=map... */
+function twPlCoordsFromMapLinks(scope){
+	var root = scope || document.getElementById('content_value') || document;
+	var as = root.querySelectorAll ? root.querySelectorAll('a[href*="x="], a[href*="&y="], a[href*="screen=map"]') : [];
+	for (var i = 0; i < as.length; i++) {
+		var h = as[i].getAttribute('href') || '';
+		var mx = /[?&]x=(\d+)/.exec(h);
+		var my = /[?&]y=(\d+)/.exec(h);
+		if (mx && my) {
+			var pair = mx[1] + '|' + my[1];
+			if (!twPlRejectNoiseCoordPair(pair)) return pair;
+		}
+	}
+	return null;
+}
+
+/** Yeni TW info_village: mini harita script icinde TWMap.showEmbeddedMap(..., x, y, ...) */
+function twPlCoordsFromEmbeddedMap(){
+	var cv = document.getElementById('content_value');
+	if (!cv) return null;
+	var chunks = [];
+	var scripts = cv.querySelectorAll('script');
+	for (var i = 0; i < scripts.length; i++) {
+		chunks.push(scripts[i].textContent || '');
+	}
+	chunks.push(cv.innerHTML || '');
+	var hay = chunks.join('\n');
+	var re = /(?:TWMap\.)?showEmbeddedMap\s*\(\s*[\s\S]*?,\s*\d+\s*,\s*(\d+)\s*,\s*(\d+)/;
+	var m = re.exec(hay);
+	if (!m) return null;
+	var ep = m[1] + '|' + m[2];
+	return twPlRejectNoiseCoordPair(ep) ? null : ep;
+}
+
+/** URL id ile game_data.village ayni koy ise (kendi koyun bilgi sayfasi) */
+function twPlCoordsFromGameDataIfUrlMatches(){
+	if (!twPlIsInfoVillagePage()) return null;
+	var m = /[?&]id=(\d+)/.exec(window.location.search);
+	if (!m || String(game_data.village.id) !== m[1]) return null;
+	if (game_data.village.coord) return twPlParseCoordText(game_data.village.coord);
+	var fx = game_data.village.x, fy = game_data.village.y;
+	if (fx != null && fy != null) return fx + '|' + fy;
+	return null;
+}
+
+/**
+ * info_village sol ust vis tablosu: "Koordinatlar:" satiri (skin satiri satir sayisini kaydirir).
+ * Sabit nth-child yedek; once etiket ile bulunur (TR/EN/DE).
+ */
+function twPlCoordsFromVillageTableCell(){
+	var gotLayout = twPlCoordsFromVisTablesByLabel();
+	if (gotLayout) return gotLayout;
+	var cv = document.getElementById('content_value');
+	if (!cv) return null;
+	/* XPath .../table[1]/tbody/tr[3|4]/td[2] — skin satiri satiri kaydirir; :scope = content_value */
+	var rowNums = [4, 3, 5, 2, 6];
+	var nthBase = '> table > tbody > tr > td:nth-child(1) > table:nth-child(1) > tbody > tr:nth-child(';
+	var nthSelectors = [];
+	for (var ni = 0; ni < rowNums.length; ni++) {
+		nthSelectors.push(':scope ' + nthBase + rowNums[ni] + ') > td:nth-child(2)');
+	}
+	nthSelectors.push(
+		'#content_value > table > tbody > tr > td:nth-child(1) > table:nth-child(1) > tbody > tr:nth-child(4) > td:nth-child(2)',
+		'#content_value > table > tbody > tr > td:nth-child(1) > table:nth-child(1) > tbody > tr:nth-child(3) > td:nth-child(2)',
+		'#content_value > table > tbody > tr > td:nth-child(1) > table:nth-child(1) > tbody > tr:nth-child(5) > td:nth-child(2)'
+	);
+	for (var s = 0; s < nthSelectors.length; s++) {
+		var sel = nthSelectors[s];
+		var el = null;
+		try {
+			el = sel.indexOf(':scope') === 0 ? cv.querySelector(sel) : document.querySelector(sel);
+		} catch (eS) { el = null; }
+		if (!el) continue;
+		var got = twPlParseCoordText(el.textContent);
+		if (got && !twPlRejectNoiseCoordPair(got)) return got;
+	}
+	return null;
+}
+
+/**
+ * info_village sayfasinda hedef koy koordinati (x|y).
+ * TW arayuzu degisince sabit satir/hucre indeksleri kirilir; once metin icinde arar, sonra tablolari dener.
+ */
+function twPlCoordsFromInfoVillage(){
+	var cv = document.getElementById('content_value');
+	if (!cv) return null;
+
+	/* DOM / tablo / link once: global showEmbeddedMap ilk eslesmesi baska koy/harita widget'i yakalayabiliyordu */
+	var fromCell = twPlCoordsFromVillageTableCell();
+	if (fromCell) return fromCell;
+
+	var fromMap = twPlCoordsFromMapLinks(cv);
+	if (fromMap) return fromMap;
+
+	var fromGd = twPlCoordsFromGameDataIfUrlMatches();
+	if (fromGd) return fromGd;
+
+	function cellMatch(tbl){
+		if (!tbl.rows || tbl.rows.length < 1) return null;
+		for (var r = 0; r < Math.min(tbl.rows.length, 15); r++) {
+			var row = tbl.rows[r];
+			if (row.cells.length < 2) continue;
+			var cell = (row.cells[1].textContent || '').trim();
+			var mm = twPlParseCoordText(cell);
+			if (mm && !twPlRejectNoiseCoordPair(mm)) return mm;
+		}
+		return null;
+	}
+
+	var visList = cv.getElementsByClassName('vis');
+	var found = null;
+	for (var v = 0; v < visList.length; v++) {
+		var root = visList[v];
+		if (root.tagName === 'TABLE') {
+			found = cellMatch(root);
+			if (found) return found;
+		} else {
+			found = twPlCoordsFromMapLinks(root);
+			if (found) return found;
+			var innerTables = root.querySelectorAll('table');
+			for (var t = 0; t < innerTables.length; t++) {
+				found = cellMatch(innerTables[t]);
+				if (found) return found;
+			}
+		}
+	}
+
+	var anchoredTxt = twPlCoordsFromAnchoredBlockText(cv);
+	if (anchoredTxt) return anchoredTxt;
+	var blockText = (cv.innerText || cv.textContent || '').replace(/\s+/g, ' ');
+	var m = blockText.match(/(\d{1,4})\s*\|\s*(\d{1,4})/)
+		|| blockText.match(/\b(\d{1,4})\s+[·‧•∶:]\s+(\d{1,4})\b/);
+	if (m) {
+		var btPair = m[1] + '|' + m[2];
+		if (!twPlRejectNoiseCoordPair(btPair)) return btPair;
+	}
+	var outer = document.getElementById('contentContainer');
+	var docMap = outer ? twPlCoordsFromMapLinks(outer) : null;
+	if (docMap) return docMap;
+
+	var fromEmbed = twPlCoordsFromEmbeddedMap();
+	if (fromEmbed) return fromEmbed;
+	fromEmbed = twPlCoordsFromEmbeddedMapGlobal();
+	if (fromEmbed) return fromEmbed;
+
+	return null;
+}
+
 function wypiszMozliwosci(){
 	if(pobieram){$("#ladowanie").html("Bekle, veriyi indiriyorum..."); setTimeout(wypiszMozliwosci, 500); return;}
 	if($("#wyborWojsk").is(":visible")){zmienStrzalke(); $("#wyborWojsk").hide();$("#lista_wojska").show(); zapiszWybrane();}
@@ -107,9 +446,15 @@ function wypiszMozliwosci(){
 	var htmlTmp =[];
 	
 	var najwJednostka = -1;
-	var cel = document.getElementById('wspolrzedneCelu').value.match(/\d+/g);
-	var godzinaWejscia = document.getElementById('godzina_wejscia').value.match(/\d+/g);
-	var dataWejscia = document.getElementById('data_wejscia').value.match(/\d+/g);
+	var celEl = twPlTargetCoordInput();
+	var celRaw = celEl ? celEl.value : '';
+	var cel = twPlParseCoordText(celRaw);
+	if (cel) cel = cel.split('|').map(Number);
+	else cel = celRaw.match(/\d+/g);
+	var gEl = document.querySelector('#planer_klinow #godzina_wejscia');
+	var dEl = document.querySelector('#planer_klinow #data_wejscia');
+	var godzinaWejscia = gEl && gEl.value ? gEl.value.match(/\d+/g) : null;
+	var dataWejscia = dEl && dEl.value ? dEl.value.match(/\d+/g) : null;
 	if (!cel || cel.length < 2) {
 		twPlToast('Hedef koordinat gecersiz (ornek: 500|500).', true);
 		return;
@@ -224,7 +569,8 @@ function zmienGrupe(){
 	id = [];
 	mojeWioski = [];
 	nazwyWiosek = [];
-	dane.linkDoWojska = document.getElementById('listGrup').value;
+	var lg = document.querySelector('#planer_klinow #listGrup');
+	if (lg) dane.linkDoWojska = lg.value;
 	pobierzDane();
 }
 function zaznaczWszystko(source) {
@@ -332,14 +678,17 @@ function wybieranieWiosek(){
 	pokazOdleglosc();
 }
 function pokazOdleglosc(){
-	var inp = document.getElementById('wspolrzedneCelu');
-	var mm = inp.value.match(/\d+\|\d+/);
-	if (mm) inp.value = mm[0];
-	var cel = inp.value.match(/\d+/g);
-	if (!cel || cel.length < 2 || !mojeWioski || !mojeWioski.length) return;
+	var inp = twPlTargetCoordInput();
+	if (!inp) return;
+	var normalized = twPlParseCoordText(inp.value);
+	if (normalized) inp.value = normalized;
+	var parts = normalized ? normalized.split('|') : null;
+	var cel = parts && parts.length >= 2 ? [Number(parts[0]), Number(parts[1])] : null;
+	if (!cel || !Number.isFinite(cel[0]) || !Number.isFinite(cel[1])) return;
+	if (!mojeWioski || !mojeWioski.length) return;
 	$("#wyborWojsk tr:has(td) td:nth-child("+(dane.predkosci.length+2)+")").each(function(i){
-		a = Math.abs(Number(cel[0]) - mojeWioski[i][mojeWioski[i].length-3]);
-		b = Math.abs(Number(cel[1]) - mojeWioski[i][mojeWioski[i].length-2]);
+		a = Math.abs(cel[0] - mojeWioski[i][mojeWioski[i].length-3]);
+		b = Math.abs(cel[1] - mojeWioski[i][mojeWioski[i].length-2]);
 		$(this).html(Number((Math.sqrt((a * a) + (b * b))).toFixed(1)));
 	});
 }
@@ -361,17 +710,76 @@ function zmienStrzalke(){
 		$("#strzaleczka").addClass('arr_down');
 	}; 
 } 
+
+/** Bookmarklet / dis script bazen content_value dolmadan calisir; info_village masaustu icin DOM hazir olunca bir kez baslat. */
+function twPlBootstrapPlaner(){
+	function run(){
+		rysujPlaner();
+		if (twPlIsInfoVillagePage()) komutTiklamaEkle();
+		pobierzDane();
+	}
+	if (mobile || !twPlIsInfoVillagePage()) {
+		run();
+		return;
+	}
+	var cv = document.getElementById('content_value');
+	if (!cv) {
+		run();
+		return;
+	}
+	function contentLooksReady(){
+		try {
+			return !!(cv.querySelector('table') || cv.querySelector('.vis') || (cv.textContent && cv.textContent.replace(/\s+/g, '').length > 120));
+		} catch (eR) {
+			return true;
+		}
+	}
+	if (contentLooksReady()) {
+		run();
+		return;
+	}
+	var finished = false;
+	function finish(){
+		if (finished) return;
+		finished = true;
+		try {
+			mo.disconnect();
+		} catch (eD) {}
+		run();
+	}
+	var mo = new MutationObserver(function(){
+		if (contentLooksReady()) finish();
+	});
+	mo.observe(cv, { childList: true, subtree: true });
+	setTimeout(finish, 7000);
+}
+
 function rysujPlaner(){
-	var cel = game_data.village.x + "|" + game_data.village.y;
-	if(game_data.screen=="info_village"){
+	var fbX = game_data.village.x, fbY = game_data.village.y;
+	var cel = twPlSanitizeCoordPair(fbX + '|' + fbY, fbX, fbY);
+	if(twPlIsInfoVillagePage()){
 		if(!mobile){
-			var tabela=document.getElementById("content_value").getElementsByClassName('vis')[0];
-			tabela.getElementsByTagName("table")[0];
-			cel = tabela.rows[2].cells[1].textContent;
+			var cv = document.getElementById('content_value');
+			var parsed = twPlCoordsFromInfoVillage() || twPlCoordsFromMapLinks(cv);
+			if (parsed && twPlRejectNoiseCoordPair(parsed)) parsed = null;
+			if (parsed) {
+				cel = twPlSanitizeCoordPair(parsed, fbX, fbY);
+			} else {
+				var tabela = cv && cv.getElementsByClassName('vis')[0];
+				var legacyRaw = '';
+				if (tabela && tabela.rows && tabela.rows[2] && tabela.rows[2].cells[1])
+					legacyRaw = (tabela.rows[2].cells[1].textContent || '').trim();
+				var fromLegacy = legacyRaw ? twPlSanitizeCoordPair(legacyRaw, null, null) : '0|0';
+				if (fromLegacy !== '0|0' && !twPlRejectNoiseCoordPair(fromLegacy)) cel = fromLegacy;
+			}
+			cel = twPlSanitizeCoordPair(cel, fbX, fbY);
 		}
 		else{
-			tabela=document.getElementsByClassName('mobileKeyValue')[0].getElementsByTagName("div")[0]; 
-			cel = tabela.textContent.match(/\d+\|\d+/);
+			var mkv = document.getElementsByClassName('mobileKeyValue')[0];
+			var mobDiv = mkv && mkv.getElementsByTagName("div")[0];
+			var mobMatch = mobDiv && (mobDiv.textContent || '').match(/\b(\d{1,4})\s*\|\s*(\d{1,4})\b/);
+			if (mobMatch) cel = mobMatch[1] + '|' + mobMatch[2];
+			cel = twPlSanitizeCoordPair(cel, fbX, fbY);
 		}
 	}
 	var pobralemCzas = false;
@@ -384,7 +792,7 @@ function rysujPlaner(){
 				return;
 			}
 		});
-	var elem = "<div class='vis vis_item' style='overflow: auto; height: 300px;' id='planer_klinow'><table width='100%'><tr><td width='300'><table style=\"border-spacing: 3px; border-collapse: separate;\"><tr><th>Hedef<th>Tarih<th>Saat<th>Grup<th><th><tr><td><input size=8 type='text' onchange='pokazOdleglosc();' value='" + cel +"' id='wspolrzedneCelu' /><td><input size=8 type='text' value='" + obecnyCzas.getDate()+"."+(obecnyCzas.getMonth()+1)+"."+obecnyCzas.getFullYear() + "' onchange=\"poprawDate(this,'.');\" id='data_wejscia'/><td><input size=8 type='text' value='" + obecnyCzas.getHours()+":"+obecnyCzas.getMinutes()+":"+obecnyCzas.getSeconds() + "' onchange=\"poprawDate(this,':');\" id='godzina_wejscia'/><td><select id='listGrup' onchange=\"zmienGrupe();\"><option value='"+wszystkieWojska+"'>Tumu</select><td onclick=\"zmienStrzalke(); if($('#wyborWojsk').is(':visible')){ $('#wyborWojsk').hide();$('#lista_wojska').show(); zapiszWybrane(); return;}	else{ $('#lista_wojska').hide(); $('#wyborWojsk').show();} \" style=\"cursor:pointer;\"><span id='strzaleczka' class='icon header arr_down' ></span><td><input type='button' class='btn' value='Hesapla' title='Asker listesi yuklenene kadar bekleyin' disabled onclick=\"wypiszMozliwosci();\" id='przycisk'></table><td id='ladowanie'><img src='"+image_base+"throbber.gif' />";
+	var elem = "<div class='vis vis_item' style='overflow: auto; height: 300px;' id='planer_klinow' data-arascript-rev='2026-05-20' title='arascript guncel'><table width='100%'><tr><td width='300'><table style=\"border-spacing: 3px; border-collapse: separate;\"><tr><th>Hedef<th>Tarih<th>Saat<th>Grup<th><th><tr><td><input size=8 type='text' onchange='pokazOdleglosc();' value='' autocomplete='off' id='wspolrzedneCelu' /><td><input size=8 type='text' value='" + obecnyCzas.getDate()+"."+(obecnyCzas.getMonth()+1)+"."+obecnyCzas.getFullYear() + "' onchange=\"poprawDate(this,'.');\" id='data_wejscia'/><td><input size=8 type='text' value='" + obecnyCzas.getHours()+":"+obecnyCzas.getMinutes()+":"+obecnyCzas.getSeconds() + "' onchange=\"poprawDate(this,':');\" id='godzina_wejscia'/><td><select id='listGrup' onchange=\"zmienGrupe();\"><option value='"+wszystkieWojska+"'>Tumu</select><td onclick=\"zmienStrzalke(); if($('#wyborWojsk').is(':visible')){ $('#wyborWojsk').hide();$('#lista_wojska').show(); zapiszWybrane(); return;}	else{ $('#lista_wojska').hide(); $('#wyborWojsk').show();} \" style=\"cursor:pointer;\"><span id='strzaleczka' class='icon header arr_down' ></span><td><input type='button' class='btn' value='Hesapla' title='Asker listesi yuklenene kadar bekleyin' disabled onclick=\"wypiszMozliwosci();\" id='przycisk'></table><td id='ladowanie'><img src='"+image_base+"throbber.gif' />";
 	elem += "<tr><td colspan=2 width='100%'><table style=\"display: none; border-spacing: 3px; border-collapse: separate;\" id='wyborWojsk' width='100%'></table><table style=\"border-spacing: 3px; border-collapse: separate;\" id='lista_wojska' width='100%'><thead><tr><th id='ilosc_mozliwosci'><span class='icon header village' ></span>";
 
 	for(i=0;i<obrazki.length;i++)
@@ -392,6 +800,9 @@ function rysujPlaner(){
 	elem += "<th>Cikis\u00A0zamani<th><span class=\'icon header time\'><th><b>Emir</b></thead>";
 	elem += "<tbody></table></table></div>";
 	$(mobile?"#mobileContent":"#contentContainer").prepend(elem);
+	twPlFillTargetCoordInput(cel);
+	twPlScheduleInfoVillageCoordRefresh();
+	twPlWatchContentValueCoords();
 }
 function komutTiklamaEkle(){
 	var rows = jQuery('#commands_outgoings .command-row');
@@ -428,8 +839,8 @@ function komutTiklamaEkle(){
 	jQuery('#komut_aktarma').on('click', '.komut-aktar-btn', function(e){
 		e.preventDefault();
 		var btn = jQuery(this);
-		jQuery('#data_wejscia').val(btn.data('tarih'));
-		jQuery('#godzina_wejscia').val(btn.data('saat'));
+		jQuery('#planer_klinow #data_wejscia').val(btn.data('tarih'));
+		jQuery('#planer_klinow #godzina_wejscia').val(btn.data('saat'));
 		btn.val('OK').css('background','#5c5');
 		setTimeout(function(){ btn.val('Aktar').css('background',''); }, 1200);
 		UI.SuccessMessage('Aktarildi: '+btn.data('tarih')+' '+btn.data('saat'));

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>arascript — bookmarklet</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    code { background: #f4f4f4; padding: 0.15em 0.4em; border-radius: 4px; }
+    .warn { background: #fff8e6; border: 1px solid #e6c200; padding: 12px; border-radius: 8px; margin: 1rem 0; }
+    a.bm { display: inline-block; margin: 8px 0; padding: 10px 14px; background: #2d6a4f; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>arascript bookmarklet</h1>
+  <p>Tribal Wars sayfasındayken scripti yüklemek için aşağıdaki bağlantıyı <strong>yer imleri çubuğuna sürükleyin</strong>, sonra oyunda (ör. köy bilgi sayfası) bir kez tıklayın.</p>
+
+  <div class="warn">
+    <strong>Önbellek:</strong> Yer imindeki adres her tıklamada <code>?v=</code> ile zaman damgası ekler; sabit URL kullanırsan tarayıcı eski <code>arascript.js</code> dosyasını tutabilir ve koordinat düzeltmeleri görünmez.
+  </div>
+
+  <p><strong>GitHub raw (main dalı)</strong> — repo güncelledikten sonra birkaç saniye içinde geçerli olur:</p>
+  <p><a class="bm" id="bm-raw" href="#">TW: arascript yükle (raw)</a></p>
+
+  <p>Kendi barındırdığın bir URL kullanacaksan <code>SCRIPT_URL</code> sabitini bu dosyadaki script içinde değiştir.</p>
+
+  <script>
+(function () {
+  var SCRIPT_URL = 'https://raw.githubusercontent.com/SafaYolcuu/klanlar/main/arascript.js';
+  var code =
+    "(function(){var u='" + SCRIPT_URL + "?bogus='+Date.now();" +
+    "var s=document.createElement('script');s.src=u;" +
+    "s.onerror=function(){alert('arascript yüklenemedi (ağ veya CSP). Tampermonkey deneyin.');};" +
+    "(document.head||document.documentElement).appendChild(s);})();";
+  var a = document.getElementById('bm-raw');
+  a.href = 'javascript:' + encodeURIComponent(code);
+})();
+  </script>
+</body>
+</html>
