@@ -452,35 +452,30 @@ function twPlReadSealPct(){
 	return pct;
 }
 
-/** Mühür / Sigil: destek yolculuğu ÷ (1 + %/100). Destek veya mühür kapalıysa 1. */
+/** Mühür / Sigil: yolculuk ÷ (1 + %/100). Mühür kapalıysa 1. */
 function twPlGetSealRatio(){
-	var cbD = document.getElementById('__tw_planner_destek');
 	var cbS = document.getElementById('__tw_planner_seal');
-	if (!cbD || !cbD.checked || !cbS || !cbS.checked) return 1;
+	if (!cbS || !cbS.checked) return 1;
 	var pct = twPlReadSealPct();
 	return pct > 0 ? 1 + pct / 100 : 1;
 }
 
 function twPlSealUiHtml(){
-	var d = twPlLsGet('tw_planner_destek') === '1' ? ' checked' : '';
 	var s = twPlLsGet('tw_planner_seal') === '1' ? ' checked' : '';
 	var p = parseInt(twPlLsGet('tw_planner_seal_pct'), 10);
 	if (isNaN(p) || p < 0) p = 0;
 	if (p > 100) p = 100;
 	return "<div id='__tw_planner_destek_wrap' style='display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:2px 6px;border:1px solid #a98;border-radius:4px;background:rgba(255,230,180,0.35);'>" +
-		"<label style='cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:4px;'><input type='checkbox' id='__tw_planner_destek'" + d + ">Destek</label>" +
-		"<label style='cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:4px;' title='Gelen destek mühür ile daha hızlı. Yolculuk ÷ (1 + %/100). Yalnızca Destek açıkken.'><input type='checkbox' id='__tw_planner_seal'" + s + ">Mühür / Sigil</label>" +
+		"<label style='cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:4px;' title='Mühür ile yolculuk daha hızlı. Yolculuk ÷ (1 + %/100).'><input type='checkbox' id='__tw_planner_seal'" + s + ">Mühür / Sigil</label>" +
 		"<label style='display:inline-flex;align-items:center;gap:4px;user-select:none;'><input type='number' id='__tw_planner_seal_pct' min='0' max='100' step='1' value='" + p + "' style='width:52px;padding:2px 4px;' title='Aktif mühür yüzdesi. 0 = etki yok.'>%</label>" +
 		"</div>";
 }
 
 function twPlBindSealUi(){
-	var cbD = document.getElementById('__tw_planner_destek');
 	var cbS = document.getElementById('__tw_planner_seal');
 	var inp = document.getElementById('__tw_planner_seal_pct');
-	if (!cbD || !cbS || !inp) return;
+	if (!cbS || !inp) return;
 	function onChange(){
-		twPlLsSet('tw_planner_destek', cbD.checked ? '1' : '0');
 		twPlLsSet('tw_planner_seal', cbS.checked ? '1' : '0');
 		twPlLsSet('tw_planner_seal_pct', String(twPlReadSealPct()));
 		try {
@@ -489,7 +484,6 @@ function twPlBindSealUi(){
 		} catch(e){}
 		if (!pobieram && mojeWioski && mojeWioski.length && $('#lista_wojska tbody tr').length) wypiszMozliwosci();
 	}
-	cbD.addEventListener('change', onChange);
 	cbS.addEventListener('change', onChange);
 	inp.addEventListener('change', onChange);
 }
